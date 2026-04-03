@@ -249,17 +249,30 @@ class MainWindow(QMainWindow):
             self.update_live_preview() 
 
     def load_image(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.jpg *.jpeg)")
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Select Image", 
+            "", 
+            "Images (*.png *.jpg *.jpeg *.webp *.avif *.bmp *.heic *.heif *.tiff *.tif *.ico)"
+        )
+        
         if file_name:
             self.image_path = file_name
             self.btn_load_image.setText("Processing Image...")
             QApplication.processEvents()
 
+            # Check if loading was actually successful
             if self.processor.load_image(self.image_path):
                 self.processor.process_background(self.chk_remove_bg.isChecked())
                 self.btn_select_area.setEnabled(True)
                 self.enable_controls(True)
                 self.update_live_preview()
+            else:
+                self.show_themed_messagebox(
+                    "Format Error", 
+                    "Could not decode this image format. It may be unsupported or corrupted.", 
+                    QMessageBox.Icon.Warning
+                )
             
             self.btn_load_image.setText("1. Load Image")
 

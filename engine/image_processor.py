@@ -29,29 +29,44 @@ class ImageProcessor:
         return self.original_image is not None
 
     def process_background(self, remove_bg: bool):
-        if self.original_image is None:
+        if self.original_image is None or self.original_data is None:
             return
 
         if remove_bg:
             logger.info("Running AI background removal...")
-            subject_data = remove(self.original_data)
-            img_bgra = cv2.imdecode(np.frombuffer(subject_data, np.uint8), cv2.IMREAD_UNCHANGED)
-            
-            trans_mask = img_bgra[:, :, 3] == 0
-            img_bgra[trans_mask] = [255, 255, 255, 255]
-            self.processed_bg_image = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
+            try:
+                subject_data = remove(self.original_data)
+                img_bgra = cv2.imdecode(np.frombuffer(subject_data, np.uint8), cv2.IMREAD_UNCHANGED)
+                self.processed_bg_image = self._standardize_to_bgra(img_bgra)
+            except Exception as e:
+                logger.error(f"AI Background removal failed: {e}")
+                logger.info("Falling back to original image.")
+                self.processed_bg_image = self._standardize_to_bgra(self.original_image)
         else:
             logger.info("Skipping background removal.")
-            if len(self.original_image.shape) == 4:
-                trans_mask = self.original_image[:, :, 3] == 0
-                bgra_copy = self.original_image.copy()
-                bgra_copy[trans_mask] = [255, 255, 255, 255]
-                self.processed_bg_image = cv2.cvtColor(bgra_copy, cv2.COLOR_BGRA2BGR)
-            elif len(self.original_image.shape) == 2:
-                self.processed_bg_image = cv2.cvtColor(self.original_image, cv2.COLOR_GRAY2BGR)
-            else:
-                self.processed_bg_image = self.original_image.copy()
+            self.processed_bg_image = self._standardize_to_bgra(self.original_image)
     
+    def _standardize_to_bgra(self, img: np.ndarray) -> np.ndarray:
+        """
+        Forces any input image (1, 3, or 4 channels) into a standard 4-channel BGRA matrix.
+        This prevents downstream channel-mismatch crashes.
+        """
+        if img is None:
+            return None
+            
+        if len(img.shape) == 2:
+            return cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA)
+            
+        elif len(img.shape) == 3 and img.shape[2] == 3:
+            return cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+            
+        elif len(img.shape) == 3 and img.shape[2] == 4:
+            return img.copy()
+            
+        else:
+            logger.warning(f"Unexpected image shape: {img.shape}. Attempting default conversion.")
+            return img.copy()
+
     def optimize_drawing_path(self, strokes: List[np.ndarray]) -> List[np.ndarray]:
         """
         Sorts strokes using a Nearest Neighbor approach to minimize mouse travel time.
@@ -110,7 +125,7 @@ class ImageProcessor:
         new_size = (int(w * scaling_factor), int(h * scaling_factor))
         resized = cv2.resize(self.processed_bg_image, new_size, interpolation=cv2.INTER_AREA)
         
-        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGRA2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         self.current_edges = cv2.Canny(blurred, threshold1=threshold1, threshold2=threshold2)
 
