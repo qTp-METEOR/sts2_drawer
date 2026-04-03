@@ -1,9 +1,10 @@
 import os
+
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QPushButton, QLabel, QFileDialog, QSlider, QHBoxLayout, 
                                QMessageBox, QCheckBox, QGroupBox, QFormLayout, 
                                QSpinBox, QDoubleSpinBox, QSizePolicy)
-from PySide6.QtCore import QStandardPaths, Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap, QAction
 
 from utils.logger import signaler, logger
@@ -17,7 +18,7 @@ from core.controller import DrawingController
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Auto Drawer Pro - Studio")
+        self.setWindowTitle("StS2 Drawer")
         self.setMinimumSize(950, 650) 
         
         self.current_theme = config.theme
@@ -114,7 +115,10 @@ class MainWindow(QMainWindow):
         self.slider_speed, self.spin_speed = self.create_setting_row(form_layout, "Speed/Detail:", 1, 100, 10, is_float=True)
         self.slider_delay, self.spin_delay = self.create_setting_row(form_layout, "Click Delay (ms):", 1, 20, config.drawing_delay)
 
-        self.spin_delay.valueChanged.connect(lambda val: setattr(config, 'drawing_delay', val))
+        def set_drawing_delay(val: int):
+            config.drawing_delay = val
+
+        self.spin_delay.valueChanged.connect(set_drawing_delay)
 
         self.btn_reset = QPushButton("↺ Reset Defaults")
         self.btn_reset.setEnabled(False)
@@ -169,13 +173,16 @@ class MainWindow(QMainWindow):
         spin_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
         spin_box.setEnabled(False)
 
-        def on_slider_changed(val):
+        def on_slider_changed(val: int):
             spin_box.blockSignals(True) 
-            spin_box.setValue(val / 10.0 if is_float else val)
+            if isinstance(spin_box, QDoubleSpinBox):
+                spin_box.setValue(val / 10.0)
+            else:
+                spin_box.setValue(val)
             spin_box.blockSignals(False)
             self.preview_timer.start(200)
 
-        def on_spin_changed(val):
+        def on_spin_changed(val: float):
             slider.blockSignals(True) 
             slider.setValue(int(val * 10) if is_float else int(val))
             slider.blockSignals(False)
@@ -294,7 +301,7 @@ class MainWindow(QMainWindow):
         self.overlay = SelectionOverlay()
         self.overlay.area_selected.connect(self.on_area_selected)
 
-    def on_area_selected(self, x, y, w, h):
+    def on_area_selected(self, x: int, y: int, w: int, h: int):
         self.draw_area = (x, y, w, h)
         self.lbl_area.setText(f"Target: W:{w}px, H:{h}px")
         self.show() 
@@ -305,7 +312,7 @@ class MainWindow(QMainWindow):
         if not self.image_path or not self.draw_area:
             return
 
-        x, y, w, h = self.draw_area
+        _, _, w, h = self.draw_area
         t1 = self.slider_thresh1.value()
         t2 = self.slider_thresh2.value()
         speed = self.slider_speed.value() / 10.0
@@ -322,7 +329,7 @@ class MainWindow(QMainWindow):
             h_img, w_img, ch = preview_img.shape
             bytes_per_line = ch * w_img
             
-            qt_image = QImage(preview_img.data, w_img, h_img, bytes_per_line, QImage.Format_RGBA8888)
+            qt_image = QImage(preview_img.data, w_img, h_img, bytes_per_line, QImage.Format.Format_RGBA8888)
             pixmap = QPixmap.fromImage(qt_image)
             
             self.lbl_preview.setPixmap(pixmap.scaled(self.lbl_preview.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))

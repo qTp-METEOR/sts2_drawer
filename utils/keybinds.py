@@ -7,25 +7,20 @@ def _build_vk_map():
         "Up": 0x26, "Down": 0x28, "Left": 0x25, "Right": 0x27,
         "Ctrl": 0x11, "Shift": 0x10, "Alt": 0x12, "Meta": 0x5B,
         
-        # Mouse buttons explicitly mapped
         "Mouse Left": 0x01, "Mouse Right": 0x02, "Mouse Middle": 0x04,
         "Mouse X1": 0x05, "Mouse X2": 0x06, "Mouse Back": 0x05, "Mouse Forward": 0x06,
         
-        # Numpad explicitly mapped
         "Num 0": 0x60, "Num 1": 0x61, "Num 2": 0x62, "Num 3": 0x63, "Num 4": 0x64,
         "Num 5": 0x65, "Num 6": 0x66, "Num 7": 0x67, "Num 8": 0x68, "Num 9": 0x69,
         "Num *": 0x6A, "Num +": 0x6B, "Num -": 0x6D, "Num .": 0x6E, "Num /": 0x6F,
     }
     
-    # Dynamically map F1 through F24
     for i in range(1, 25):
         vk_map[f"F{i}"] = 0x6F + i
         
-    # Dynamically map A-Z using the OS directly
     for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         vk_map[char] = ctypes.windll.user32.VkKeyScanW(ord(char)) & 0xFF
         
-    # Dynamically map 0-9 (Top Row)
     for i in range(10):
         vk_map[str(i)] = 0x30 + i
         

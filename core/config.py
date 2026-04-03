@@ -3,7 +3,7 @@ from PySide6.QtCore import QSettings, QStandardPaths
 class ConfigManager:
     """Single source of truth for application settings."""
     def __init__(self):
-        self._settings = QSettings("AutoDrawerOrg", "AutoDrawer")
+        self._settings = QSettings("qTpMeteor", "StS2 Drawer")
 
     @property
     def theme(self) -> str:
@@ -29,7 +29,11 @@ class ConfigManager:
     @property
     def drawing_delay(self) -> int:
         """Delay between points in milliseconds. Default 2ms."""
-        return int(self._settings.value("drawing_delay", 2))
+        val = self._settings.value("drawing_delay", 2)
+        try:
+            return int(str(val))
+        except (ValueError, TypeError):
+            return 2
 
     @drawing_delay.setter
     def drawing_delay(self, value: int):
@@ -47,5 +51,4 @@ class ConfigManager:
     def abort_key(self, value: str):
         self._settings.setValue("abort_key", value)
 
-# Global instance
 config = ConfigManager()

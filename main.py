@@ -1,9 +1,8 @@
 import sys
+
 from PySide6.QtWidgets import QApplication
 
-# Initialize core utilities before loading UI modules
 from utils.logger import setup_logger
-
 from ui.main_window import MainWindow
 
 def main():

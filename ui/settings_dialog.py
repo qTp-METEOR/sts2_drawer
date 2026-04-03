@@ -1,9 +1,12 @@
 import os
+from typing import Optional
+
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget, QWidget, 
                                QFormLayout, QComboBox, QTextEdit, QLabel, 
                                QPushButton)
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent, QKeySequence
+from PySide6.QtGui import QKeyEvent, QKeySequence, QMouseEvent
+
 from utils.theme import is_theme_dark, apply_native_titlebar_theme
 from core.config import config
 
@@ -29,12 +32,9 @@ class KeybindRecorder(QPushButton):
             return
 
         key = event.key()
-        # Ignore isolated modifier presses; wait until the actual key is struck
         if key in (Qt.Key.Key_Shift, Qt.Key.Key_Control, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
             return
 
-        # PySide6 strictly forbids bitwise ORing ints and Enums. 
-        # We must use the native keyCombination() object instead.
         combo = event.keyCombination()
         sequence = QKeySequence(combo).toString()
         
@@ -42,19 +42,17 @@ class KeybindRecorder(QPushButton):
         self.setChecked(False)
         self.key_changed.emit(sequence)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent):
         if not self.isChecked():
             super().mousePressEvent(event)
             return
 
-        # Translate hardware mouse clicks into our string format
         btn = event.button()
         btn_str = ""
         
         if btn == Qt.MouseButton.LeftButton: btn_str = "Mouse Left"
         elif btn == Qt.MouseButton.RightButton: btn_str = "Mouse Right"
         elif btn == Qt.MouseButton.MiddleButton: btn_str = "Mouse Middle"
-        # X1 and X2 are the only native extra mouse buttons supported by Windows Win32 API
         elif btn in (Qt.MouseButton.BackButton, Qt.MouseButton.ExtraButton1): btn_str = "Mouse X1"
         elif btn in (Qt.MouseButton.ForwardButton, Qt.MouseButton.ExtraButton2): btn_str = "Mouse X2"
         
@@ -75,11 +73,11 @@ class KeybindRecorder(QPushButton):
 class SettingsDialog(QDialog):
     theme_changed = Signal(str)
 
-    def __init__(self, current_theme: str, parent=None):
+    def __init__(self, current_theme: str, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowTitle("⚙ Settings")
         self.setMinimumSize(500, 400)
-        self.current_theme = current_theme
+        self.current_theme: str = current_theme
 
         self.setup_ui()
         self.apply_titlebar_theme() 
@@ -92,7 +90,6 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         tabs = QTabWidget()
 
-        # --- TAB 1: General Preferences ---
         tab_general = QWidget()
         form_layout = QFormLayout(tab_general)
         
@@ -104,11 +101,9 @@ class SettingsDialog(QDialog):
         form_layout.addRow("Application Theme:", self.combo_theme)
         tabs.addTab(tab_general, "General")
 
-        # --- TAB 2: Keybinds (OVERHAULED) ---
         tab_keybinds = QWidget()
         key_layout = QFormLayout(tab_keybinds)
         
-        # Instantiate our custom recorders using the ConfigManager
         self.btn_pause_bind = KeybindRecorder(config.pause_key)
         self.btn_abort_bind = KeybindRecorder(config.abort_key)
         
@@ -118,14 +113,12 @@ class SettingsDialog(QDialog):
         key_layout.addRow("Pause / Resume:", self.btn_pause_bind)
         key_layout.addRow("Emergency Abort:", self.btn_abort_bind)
         
-        # Reset Button
         btn_reset_binds = QPushButton("↺ Reset to Defaults")
         btn_reset_binds.clicked.connect(self.reset_keybinds)
         key_layout.addRow("", btn_reset_binds)
         
         tabs.addTab(tab_keybinds, "Keybinds")
 
-        # --- TAB 3: System Logs ---
         tab_logs = QWidget()
         log_layout = QVBoxLayout(tab_logs)
         self.log_viewer = QTextEdit()
@@ -141,13 +134,12 @@ class SettingsDialog(QDialog):
         tabs.addTab(tab_logs, "System Logs")
         self.load_logs()
 
-        # --- TAB 4: About ---
         tab_about = QWidget()
         about_layout = QVBoxLayout(tab_about)
         about_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_title = QLabel("<h2>Auto Drawer Pro - Studio</h2>")
+        lbl_title = QLabel("<h2>StS2 Drawer</h2>")
         lbl_version = QLabel("<b>Version:</b> 1.0.0")
-        lbl_github = QLabel('<a href="https://github.com/yourusername/auto_drawer">View Source on GitHub</a>')
+        lbl_github = QLabel('<a href="https://github.com/qTp-METEOR/sts2_drawer">View Source on GitHub</a>')
         lbl_github.setOpenExternalLinks(True)
         lbl_credits = QLabel("Built with PySide6, OpenCV, and Rembg.")
         lbl_credits.setStyleSheet("color: #888; font-style: italic;")
@@ -180,7 +172,7 @@ class SettingsDialog(QDialog):
             config.pause_key = pause
             config.abort_key = abort
 
-    def on_theme_changed(self, new_theme):
+    def on_theme_changed(self, new_theme: str):
         self.current_theme = new_theme
         self.apply_titlebar_theme() 
         self.theme_changed.emit(new_theme)

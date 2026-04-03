@@ -1,8 +1,11 @@
 import time
 from typing import List
+
 import numpy as np
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QCursor
+from numpy.typing import NDArray
+
 from utils.logger import logger
 from core import hardware_api
 
@@ -13,7 +16,7 @@ class DrawingWorker(QThread):
     aborted = Signal()
     status_changed = Signal(bool)
 
-    def __init__(self, strokes: List[np.ndarray], offset_x: int, offset_y: int, abort_vks: List[int], pause_vks: List[int], delay_ms: int = 2):
+    def __init__(self, strokes: List[NDArray[np.int32]], offset_x: int, offset_y: int, abort_vks: List[int], pause_vks: List[int], delay_ms: int = 2):
         super().__init__()
         self.strokes = strokes
         self.offset_x = offset_x
@@ -36,12 +39,10 @@ class DrawingWorker(QThread):
         QCursor.setPos(int(self.offset_x + x), int(self.offset_y + y))
 
     def check_input(self):
-        # Abort Check
         if hardware_api.are_all_keys_pressed(self.abort_vks):
             self._is_running = False
             return
 
-        # Pause/Resume Check
         current_p_state = hardware_api.are_all_keys_pressed(self.pause_vks)
         if current_p_state and not self._last_p_state:
             self._is_paused = not self._is_paused

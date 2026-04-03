@@ -1,6 +1,7 @@
+import logging
+
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QProgressBar
 from PySide6.QtCore import Qt
-import logging
 
 logger = logging.getLogger("AutoDrawer")
 
@@ -51,7 +52,6 @@ class StatusWidget(QWidget):
         self.lbl_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_stats.setStyleSheet("font-size: 15px;")
         
-        # Inject the dynamic keybinds into the label
         self.lbl_keys = QLabel(f"<b>[ {pause_key} ]</b> Pause  |  <b>[ {abort_key} ]</b> Abort")
         self.lbl_keys.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_keys.setStyleSheet(f"color: {text_color}; font-size: 13px;")

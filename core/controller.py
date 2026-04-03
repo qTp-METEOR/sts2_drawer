@@ -1,5 +1,10 @@
+from typing import List
+
+import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
+
 from core.worker import DrawingWorker
 from ui.status_widget import StatusWidget
 from utils.keybinds import parse_keybind_string
@@ -17,7 +22,7 @@ class DrawingController(QObject):
         self.worker = None
         self.hud = None
 
-    def start_drawing(self, strokes: list, offset_x: int, offset_y: int):
+    def start_drawing(self, strokes: List[NDArray[np.int32]], offset_x: int, offset_y: int):
         pause_key_str = config.pause_key
         abort_key_str = config.abort_key
         
