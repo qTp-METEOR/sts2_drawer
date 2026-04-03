@@ -3,7 +3,7 @@ import logging
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QProgressBar
 from PySide6.QtCore import Qt
 
-logger = logging.getLogger("AutoDrawer")
+logger = logging.getLogger(__name__)
 
 class StatusWidget(QWidget):
     def __init__(self, is_dark_mode: bool = True, pause_key: str = "P", abort_key: str = "ESC"):

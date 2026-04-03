@@ -11,7 +11,7 @@ class ExceptionSignaler(QObject):
     error_signal = Signal(str, str) 
 
 signaler = ExceptionSignaler()
-logger = logging.getLogger("AutoDrawer")
+logger = logging.getLogger(__name__)
 
 def setup_logger():
     if logger.hasHandlers():

@@ -4,7 +4,7 @@ import logging
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
-logger = logging.getLogger("AutoDrawer")
+logger = logging.getLogger(__name__)
 
 def is_theme_dark(theme_string: str) -> bool:
     """Resolves 'System Default' to the actual OS mode (Dark or Light)."""
