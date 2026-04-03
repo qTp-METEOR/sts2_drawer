@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPushButton, QLabel, QFileDialog, QSlider, QHBoxLayout, 
                                QMessageBox, QCheckBox, QGroupBox, QFormLayout, 
                                QSpinBox, QDoubleSpinBox, QSizePolicy)
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QStandardPaths, Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap, QAction
 
 from utils.logger import signaler, logger
@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
         self.processor = ImageProcessor()
         self.image_path = None
         self.draw_area = None
-        
+
         self.controller = DrawingController(self)
         self.controller.draw_completed.connect(self.on_draw_complete)
         self.controller.draw_aborted.connect(self.on_draw_aborted)
@@ -252,16 +252,17 @@ class MainWindow(QMainWindow):
         file_name, _ = QFileDialog.getOpenFileName(
             self, 
             "Select Image", 
-            "", 
+            config.last_open_dir, 
             "Images (*.png *.jpg *.jpeg *.webp *.avif *.bmp *.heic *.heif *.tiff *.tif *.ico)"
         )
         
         if file_name:
+            config.last_open_dir = os.path.dirname(file_name)
+
             self.image_path = file_name
             self.btn_load_image.setText("Processing Image...")
             QApplication.processEvents()
 
-            # Check if loading was actually successful
             if self.processor.load_image(self.image_path):
                 self.processor.process_background(self.chk_remove_bg.isChecked())
                 self.btn_select_area.setEnabled(True)

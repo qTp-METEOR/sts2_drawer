@@ -1,4 +1,4 @@
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QStandardPaths
 
 class ConfigManager:
     """Single source of truth for application settings."""
@@ -12,6 +12,15 @@ class ConfigManager:
     @theme.setter
     def theme(self, value: str):
         self._settings.setValue("theme", value)
+
+    @property
+    def last_open_dir(self) -> str:
+        default_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
+        return str(self._settings.value("last_open_dir", default_dir))
+
+    @last_open_dir.setter
+    def last_open_dir(self, value: str):
+        self._settings.setValue("last_open_dir", value)
 
     @property
     def pause_key(self) -> str:
