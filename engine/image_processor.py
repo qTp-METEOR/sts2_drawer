@@ -47,9 +47,11 @@ class ImageProcessor:
                 bgra_copy = self.original_image.copy()
                 bgra_copy[trans_mask] = [255, 255, 255, 255]
                 self.processed_bg_image = cv2.cvtColor(bgra_copy, cv2.COLOR_BGRA2BGR)
+            elif len(self.original_image.shape) == 2:
+                self.processed_bg_image = cv2.cvtColor(self.original_image, cv2.COLOR_GRAY2BGR)
             else:
                 self.processed_bg_image = self.original_image.copy()
-
+    
     def optimize_drawing_path(self, strokes: List[np.ndarray]) -> List[np.ndarray]:
         """
         Sorts strokes using a Nearest Neighbor approach to minimize mouse travel time.
