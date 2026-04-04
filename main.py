@@ -2,8 +2,8 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from utils.logger import setup_logger
-from ui.main_window import MainWindow
+from app.utils.logger import setup_logger
+from app.ui.main_window import MainWindow
 
 def main():
     setup_logger()

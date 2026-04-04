@@ -7,8 +7,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget, QWidget,
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QMouseEvent
 
-from utils.theme import is_theme_dark, apply_native_titlebar_theme
-from core.config import config
+from app.utils.theme import is_theme_dark, apply_native_titlebar_theme
+from app.core.config import config
 
 class KeybindRecorder(QPushButton):
     """Custom button that listens for both key presses AND mouse clicks."""

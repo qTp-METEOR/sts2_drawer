@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import List
 
@@ -6,8 +7,9 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QCursor
 from numpy.typing import NDArray
 
-from utils.logger import logger
-from core import hardware_api
+from app.core import hardware_api
+
+logger = logging.getLogger(__name__)
 
 class DrawingWorker(QThread):
     progress = Signal(int, int, int, str)

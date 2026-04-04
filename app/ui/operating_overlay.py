@@ -1,11 +1,13 @@
 from typing import Optional
+import logging
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPaintEvent, QMouseEvent, QPainter, QColor, QPen
 from PySide6.QtCore import QPoint, Qt, QRect, Signal
 
-from utils.logger import logger
-from core import hardware_api
+from app.core import hardware_api
+
+logger = logging.getLogger(__name__)
 
 class SelectionOverlay(QWidget):
     area_selected = Signal(int, int, int, int) 

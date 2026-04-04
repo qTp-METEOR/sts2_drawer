@@ -11,7 +11,7 @@ class ExceptionSignaler(QObject):
     error_signal = Signal(str, str) 
 
 signaler = ExceptionSignaler()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app")
 
 def setup_logger():
     if logger.hasHandlers():

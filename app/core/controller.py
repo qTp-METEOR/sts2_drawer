@@ -5,11 +5,11 @@ from numpy.typing import NDArray
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
-from core.worker import DrawingWorker
-from ui.status_widget import StatusWidget
-from utils.keybinds import parse_keybind_string
-from core.config import config
-from utils.theme import is_theme_dark
+from app.core.worker import DrawingWorker
+from app.ui.status_widget import StatusWidget
+from app.utils.keybinds import parse_keybind_string
+from app.core.config import config
+from app.utils.theme import is_theme_dark
 
 class DrawingController(QObject):
     """Orchestrates the drawing worker thread and the HUD overlay."""

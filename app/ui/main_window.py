@@ -1,4 +1,6 @@
 import os
+import logging
+from pathlib import Path
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QPushButton, QLabel, QFileDialog, QSlider, QHBoxLayout, 
@@ -7,13 +9,15 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap, QAction
 
-from utils.logger import signaler, logger
-from utils.theme import is_theme_dark, apply_native_titlebar_theme
-from engine.image_processor import ImageProcessor
-from ui.operating_overlay import SelectionOverlay
-from ui.settings_dialog import SettingsDialog
-from core.config import config
-from core.controller import DrawingController
+from app.utils.logger import signaler
+from app.utils.theme import is_theme_dark, apply_native_titlebar_theme
+from app.engine.image_processor import ImageProcessor
+from app.ui.operating_overlay import SelectionOverlay
+from app.ui.settings_dialog import SettingsDialog
+from app.core.config import config
+from app.core.controller import DrawingController
+
+logger = logging.getLogger(__name__)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -224,10 +228,11 @@ class MainWindow(QMainWindow):
         apply_native_titlebar_theme(int(self.winId()), is_dark)
         
         file_name = "dark.qss" if is_dark else "light.qss"
-        style_path = os.path.join("resources", "styles", file_name)
+        base_path = Path(__file__).resolve().parent.parent
+        style_path = base_path / "resources" / "styles" / file_name
         
         try:
-            with open(style_path, "r", encoding="utf-8") as f:
+            with open(str(style_path), "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
             logger.error(f"Stylesheet not found: {style_path}. Ensure the file exists.")

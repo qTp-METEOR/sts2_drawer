@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import List, Optional, Tuple, cast, Any
+import logging
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
 from rembg import remove # type: ignore
 
-from utils.logger import logger
+logger = logging.getLogger(__name__)
 
 class ImageProcessor:
     def __init__(self) -> None:
@@ -27,6 +28,11 @@ class ImageProcessor:
             
         img_array = np.frombuffer(self.original_data, np.uint8)
         decoded = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
+
+        if decoded is None:
+            logger.error(f"Failed to decode image: {path}. File may be corrupted or in an unsupported format.")
+            return False
+
         self.original_image = cast(Optional[NDArray[np.uint8]], decoded)
         
         self.processed_bg_image = None
