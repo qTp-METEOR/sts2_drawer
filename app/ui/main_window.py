@@ -12,7 +12,7 @@ from PySide6.QtGui import QImage, QPixmap, QAction
 from app.utils.logger import signaler
 from app.utils.theme import is_theme_dark, apply_native_titlebar_theme
 from app.engine.image_processor import ImageProcessor
-from app.ui.operating_overlay import SelectionOverlay
+from app.ui.selection_overlay import SelectionOverlay
 from app.ui.settings_dialog import SettingsDialog
 from app.core.config import config
 from app.core.controller import DrawingController
