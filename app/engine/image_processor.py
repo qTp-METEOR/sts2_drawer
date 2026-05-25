@@ -5,17 +5,18 @@ import logging
 import cv2
 import numpy as np
 from numpy.typing import NDArray
-from rembg import remove # type: ignore
+from rembg import remove, new_session  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 class ImageProcessor:
-    def __init__(self) -> None:
+    def __init__(self, rembg_session: Optional[Any]) -> None:
         self.original_image: Optional[NDArray[np.uint8]] = None
         self.original_data: Optional[bytes] = None
         self.processed_bg_image: Optional[NDArray[np.uint8]] = None
         self.current_edges: Optional[NDArray[np.uint8]] = None
         self.current_strokes: List[NDArray[np.int32]] = []
+        self._rembg_session: Optional[Any] = rembg_session
 
     def load_image(self, image_path: str) -> bool:
         path = Path(image_path)
@@ -45,7 +46,10 @@ class ImageProcessor:
         if remove_bg:
             logger.info("Running AI background removal...")
             try:
-                subject_data = cast(bytes, remove(self.original_data))
+                from rembg import remove # type: ignore
+                
+                session = new_session("isnet-general-use") if self._rembg_session is None else self._rembg_session
+                subject_data = cast(bytes, remove(self.original_data, session=session))
                 decoded_bg = cv2.imdecode(np.frombuffer(subject_data, np.uint8), cv2.IMREAD_UNCHANGED)
                 img_bgra = cast(NDArray[np.uint8], decoded_bg)
                 self.processed_bg_image = self._standardize_to_bgra(img_bgra)

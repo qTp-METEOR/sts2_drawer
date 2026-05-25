@@ -1,11 +1,13 @@
 import os
 import logging
 from pathlib import Path
+from typing import Any, Optional, List, Tuple
 
+import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                               QPushButton, QLabel, QFileDialog, QSlider, QHBoxLayout, 
-                               QMessageBox, QCheckBox, QGroupBox, QFormLayout, 
-                               QSpinBox, QDoubleSpinBox, QSizePolicy)
+                               QPushButton, QLabel, QFileDialog, QHBoxLayout, 
+                               QMessageBox)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap, QAction
 
@@ -14,13 +16,14 @@ from app.utils.theme import is_theme_dark, apply_native_titlebar_theme
 from app.engine.image_processor import ImageProcessor
 from app.ui.selection_overlay import SelectionOverlay
 from app.ui.settings_dialog import SettingsDialog
+from app.ui.image_setup_widget import ImageModeWidget
 from app.core.config import config
 from app.core.controller import DrawingController
 
 logger = logging.getLogger(__name__)
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, rembg_session: Optional[Any] = None) -> None:
         super().__init__()
         self.setWindowTitle("StS2 Drawer")
         self.setMinimumSize(950, 650) 
@@ -28,9 +31,10 @@ class MainWindow(QMainWindow):
         self.current_theme = config.theme
         signaler.error_signal.connect(self.show_critical_error)
 
-        self.processor = ImageProcessor()
-        self.image_path = None
-        self.draw_area = None
+        self.image_processor = ImageProcessor(rembg_session=rembg_session)
+        self.image_path: Optional[str] = None
+        self.draw_area: Optional[Tuple[int, int, int, int]] = None
+        self.current_strokes: List[NDArray[np.int32]] = []
 
         self.controller = DrawingController(self)
         self.controller.draw_completed.connect(self.on_draw_complete)
@@ -44,25 +48,23 @@ class MainWindow(QMainWindow):
         self.setup_menu_bar()
         self.setup_ui()
         self.load_stylesheet()
+        self.force_focus()
 
-    def show_themed_messagebox(self, title: str, text: str, icon: QMessageBox.Icon):
+    def show_themed_messagebox(self, title: str, text: str, icon: QMessageBox.Icon) -> None:
         self.reset_ui()
         self.force_focus()
-        
         msg = QMessageBox(self) 
         msg.setWindowTitle(title)
         msg.setText(text)
         msg.setIcon(icon)
-        
         is_dark = is_theme_dark(self.current_theme)
         apply_native_titlebar_theme(int(msg.winId()), is_dark)
-        
         msg.exec()
 
-    def show_critical_error(self, title: str, message: str):
+    def show_critical_error(self, title: str, message: str) -> None:
         self.show_themed_messagebox(title, f"An unexpected error occurred:\n\n{message}", QMessageBox.Icon.Critical)
 
-    def setup_menu_bar(self):
+    def setup_menu_bar(self) -> None:
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu("File")
         
@@ -81,7 +83,7 @@ class MainWindow(QMainWindow):
         action_settings.triggered.connect(self.open_settings)
         edit_menu.addAction(action_settings)
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
@@ -91,53 +93,32 @@ class MainWindow(QMainWindow):
         control_panel.setMaximumWidth(550)
         v_layout = QVBoxLayout(control_panel)
 
-        self.btn_load_image = QPushButton("1. Load Image")
-        self.btn_load_image.clicked.connect(self.load_image)
-        v_layout.addWidget(self.btn_load_image)
+        self.image_tab = ImageModeWidget(initial_delay=config.drawing_delay)
+        self.image_tab.load_requested.connect(self.load_image)
+        self.image_tab.settings_changed.connect(self._on_settings_changed)
+        self.image_tab.bg_toggled.connect(self.on_bg_toggle_changed)
+        self.image_tab.delay_changed.connect(self.set_drawing_delay)
+        
+        v_layout.addWidget(self.image_tab)
+        v_layout.addSpacing(10)
 
         self.lbl_area = QLabel("Target: Not Selected")
         self.lbl_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.btn_select_area = QPushButton("2. Select Draw Area")
+        
+        self.btn_select_area = QPushButton("Select Draw Area")
         self.btn_select_area.clicked.connect(self.open_overlay)
-        self.btn_select_area.setEnabled(False)
+        self.btn_select_area.setEnabled(True) 
+        
         v_layout.addWidget(self.btn_select_area)
         v_layout.addWidget(self.lbl_area)
         v_layout.addSpacing(10)
-
-        settings_group = QGroupBox("Processing Settings")
-        form_layout = QFormLayout(settings_group)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-
-        self.chk_remove_bg = QCheckBox("AI Background Removal")
-        self.chk_remove_bg.setChecked(True)
-        self.chk_remove_bg.setEnabled(False)
-        self.chk_remove_bg.stateChanged.connect(self.on_bg_toggle_changed)
-        form_layout.addRow("", self.chk_remove_bg)
-
-        self.slider_thresh1, self.spin_thresh1 = self.create_setting_row(form_layout, "Canny Min:", 0, 255, 50)
-        self.slider_thresh2, self.spin_thresh2 = self.create_setting_row(form_layout, "Canny Max:", 0, 255, 100)
-        self.slider_speed, self.spin_speed = self.create_setting_row(form_layout, "Speed/Detail:", 1, 100, 10, is_float=True)
-        self.slider_delay, self.spin_delay = self.create_setting_row(form_layout, "Click Delay (ms):", 1, 20, config.drawing_delay)
-
-        def set_drawing_delay(val: int):
-            config.drawing_delay = val
-
-        self.spin_delay.valueChanged.connect(set_drawing_delay)
-
-        self.btn_reset = QPushButton("↺ Reset Defaults")
-        self.btn_reset.setEnabled(False)
-        self.btn_reset.clicked.connect(self.reset_to_defaults)
-        form_layout.addRow("", self.btn_reset)
-
-        v_layout.addWidget(settings_group)
 
         self.lbl_stats = QLabel("Strokes: 0 | Points: 0")
         self.lbl_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_stats.setObjectName("StatsLabel")
         v_layout.addWidget(self.lbl_stats)
-        v_layout.addStretch()
-
-        self.btn_start = QPushButton("3. START DRAWING")
+        
+        self.btn_start = QPushButton("START DRAWING")
         self.btn_start.setObjectName("StartBtn")
         self.btn_start.setEnabled(False)
         self.btn_start.clicked.connect(self.start_drawing)
@@ -146,7 +127,7 @@ class MainWindow(QMainWindow):
         preview_panel = QWidget()
         preview_layout = QVBoxLayout(preview_panel)
         
-        self.lbl_preview = QLabel("Load an image and select an area to see preview.")
+        self.lbl_preview = QLabel("Select an area to see preview.")
         self.lbl_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_preview.setObjectName("PreviewLabel")
         preview_layout.addWidget(self.lbl_preview)
@@ -154,61 +135,18 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(control_panel, stretch=1)
         main_layout.addWidget(preview_panel, stretch=2)
 
-    def create_setting_row(self, layout: QFormLayout, label_name: str, min_val: int, max_val: int, default_val: int, is_float: bool = False):
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(min_val, max_val)
-        slider.setValue(default_val)
-        slider.setEnabled(False)
+    def _on_settings_changed(self) -> None:
+        self.preview_timer.start(200)
 
-        if is_float:
-            spin_box = QDoubleSpinBox()
-            spin_box.setRange(min_val / 10.0, max_val / 10.0)
-            spin_box.setSingleStep(0.1)
-            spin_box.setDecimals(1)
-            spin_box.setSuffix("x")
-            spin_box.setValue(default_val / 10.0)
-        else:
-            spin_box = QSpinBox()
-            spin_box.setRange(min_val, max_val)
-            spin_box.setValue(default_val)
+    def set_drawing_delay(self, val: int) -> None:
+        config.drawing_delay = val
 
-        spin_box.setMinimumWidth(85)
-        spin_box.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
-        spin_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        spin_box.setEnabled(False)
-
-        def on_slider_changed(val: int):
-            spin_box.blockSignals(True) 
-            if isinstance(spin_box, QDoubleSpinBox):
-                spin_box.setValue(val / 10.0)
-            else:
-                spin_box.setValue(val)
-            spin_box.blockSignals(False)
-            self.preview_timer.start(200)
-
-        def on_spin_changed(val: float):
-            slider.blockSignals(True) 
-            slider.setValue(int(val * 10) if is_float else int(val))
-            slider.blockSignals(False)
-            self.preview_timer.start(200)
-
-        slider.valueChanged.connect(on_slider_changed)
-        spin_box.valueChanged.connect(on_spin_changed)
-
-        h_layout = QHBoxLayout()
-        h_layout.addWidget(slider)
-        h_layout.addWidget(spin_box)
-        h_layout.setContentsMargins(0, 0, 0, 0)
-        layout.addRow(label_name, h_layout)
-        
-        return slider, spin_box
-
-    def open_settings(self):
+    def open_settings(self) -> None:
         dialog = SettingsDialog(self.current_theme, self)
         dialog.theme_changed.connect(self.change_theme)
         dialog.exec() 
 
-    def change_theme(self, new_theme: str):
+    def change_theme(self, new_theme: str) -> None:
         self.current_theme = new_theme
         config.theme = new_theme 
         self.load_stylesheet()
@@ -223,7 +161,7 @@ class MainWindow(QMainWindow):
             return "Light"
         return self.current_theme
 
-    def load_stylesheet(self):
+    def load_stylesheet(self) -> None:
         is_dark = is_theme_dark(self.current_theme)
         apply_native_titlebar_theme(int(self.winId()), is_dark)
         
@@ -237,30 +175,7 @@ class MainWindow(QMainWindow):
         except FileNotFoundError:
             logger.error(f"Stylesheet not found: {style_path}. Ensure the file exists.")
 
-    def enable_controls(self, state: bool):
-        self.chk_remove_bg.setEnabled(state)
-        self.slider_thresh1.setEnabled(state)
-        self.spin_thresh1.setEnabled(state)
-        self.slider_thresh2.setEnabled(state)
-        self.spin_thresh2.setEnabled(state)
-        self.slider_speed.setEnabled(state)
-        self.spin_speed.setEnabled(state)
-        self.slider_delay.setEnabled(state)
-        self.spin_delay.setEnabled(state)
-        self.btn_reset.setEnabled(state)
-        self.btn_start.setEnabled(state and self.draw_area is not None)
-
-    def reset_to_defaults(self):
-        self.slider_thresh1.setValue(50)
-        self.slider_thresh2.setValue(100)
-        self.slider_speed.setValue(10)
-        
-        if not self.chk_remove_bg.isChecked():
-            self.chk_remove_bg.setChecked(True)
-        else:
-            self.update_live_preview() 
-
-    def load_image(self):
+    def load_image(self) -> None:
         file_name, _ = QFileDialog.getOpenFileName(
             self, 
             "Select Image", 
@@ -270,103 +185,111 @@ class MainWindow(QMainWindow):
         
         if file_name:
             config.last_open_dir = os.path.dirname(file_name)
-
             self.image_path = file_name
-            self.btn_load_image.setText("Processing Image...")
+            self.image_tab.set_load_button_text("Processing Image...")
             QApplication.processEvents()
 
-            if self.processor.load_image(self.image_path):
-                self.processor.process_background(self.chk_remove_bg.isChecked())
-                self.btn_select_area.setEnabled(True)
-                self.enable_controls(True)
+            settings = self.image_tab.get_settings()
+            if self.image_processor.load_image(self.image_path):
+                self.image_processor.process_background(settings["remove_bg"])
+                self.image_tab.enable_controls(True)
                 self.update_live_preview()
             else:
                 self.show_themed_messagebox(
                     "Format Error", 
-                    "Could not decode this image format. It may be unsupported or corrupted.", 
+                    "Could not decode this image format.", 
                     QMessageBox.Icon.Warning
                 )
             
-            self.btn_load_image.setText("1. Load Image")
+            self.image_tab.set_load_button_text("Load Image")
 
-    def on_bg_toggle_changed(self):
+    def on_bg_toggle_changed(self, remove_bg: bool) -> None:
         if not self.image_path: return
-        self.btn_load_image.setText("Updating Background...")
-        self.enable_controls(False)
+        self.image_tab.set_load_button_text("Updating Background...")
+        self.image_tab.enable_controls(False)
         QApplication.processEvents()
         
-        self.processor.process_background(self.chk_remove_bg.isChecked())
+        self.image_processor.process_background(remove_bg)
         
-        self.enable_controls(True)
-        self.btn_load_image.setText("1. Load Image")
+        self.image_tab.enable_controls(True)
+        self.image_tab.set_load_button_text("Load Image")
         self.update_live_preview()
 
-    def open_overlay(self):
+    def open_overlay(self) -> None:
         self.hide() 
         self.overlay = SelectionOverlay()
         self.overlay.area_selected.connect(self.on_area_selected)
 
-    def on_area_selected(self, x: int, y: int, w: int, h: int):
+    def on_area_selected(self, x: int, y: int, w: int, h: int) -> None:
         self.draw_area = (x, y, w, h)
         self.lbl_area.setText(f"Target: W:{w}px, H:{h}px")
         self.show() 
-        self.enable_controls(True)
         self.update_live_preview()
 
-    def update_live_preview(self):
-        if not self.image_path or not self.draw_area:
+    def update_live_preview(self) -> None:
+        if not self.draw_area:
+            self.lbl_preview.setText("Select Draw Area to define your canvas.")
+            self.btn_start.setEnabled(False)
             return
 
         _, _, w, h = self.draw_area
-        t1 = self.slider_thresh1.value()
-        t2 = self.slider_thresh2.value()
-        speed = self.slider_speed.value() / 10.0
-
         is_dark = (self.get_resolved_theme() == "Dark")
         line_color = (255, 255, 255) if is_dark else (0, 0, 0)
         
-        preview_img, points = self.processor.generate_preview(w, h, t1, t2, speed, line_color=line_color)
-        
-        if preview_img is not None:
-            strokes_count = len(self.processor.current_strokes)
-            self.lbl_stats.setText(f"Strokes: {strokes_count:,} | Points: {points:,}")
+        if not self.image_path:
+            self.lbl_preview.setText("Click 'Load Image' to select a picture to draw.")
+            self.btn_start.setEnabled(False)
+            return
+            
+        settings = self.image_tab.get_settings()
+        preview_img, points = self.image_processor.generate_preview(
+            w, h, settings["thresh1"], settings["thresh2"], settings["speed"], line_color=line_color
+        )
+        self.current_strokes = self.image_processor.current_strokes
 
+        if preview_img is not None and self.current_strokes:
+            self.lbl_stats.setText(f"Strokes: {len(self.current_strokes):,} | Points: {points:,}")
             h_img, w_img, ch = preview_img.shape
             bytes_per_line = ch * w_img
-            
             qt_image = QImage(preview_img.data, w_img, h_img, bytes_per_line, QImage.Format.Format_RGBA8888)
             pixmap = QPixmap.fromImage(qt_image)
-            
             self.lbl_preview.setPixmap(pixmap.scaled(self.lbl_preview.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.btn_start.setEnabled(True)
+        else:
+            self.lbl_preview.setText("Could not generate preview. Try adjusting your settings.")
+            self.btn_start.setEnabled(False)
 
-    def force_focus(self):
+    def force_focus(self) -> None:
         if self.isMinimized():
             self.showNormal()
         self.setWindowState((self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
         self.raise_()           
         self.activateWindow()
 
-    def start_drawing(self):
-        if not self.draw_area or not self.processor.current_strokes:
+    def start_drawing(self) -> None:
+        if not self.draw_area or not self.current_strokes:
             return
 
         x, y, _, _ = self.draw_area
-        strokes = self.processor.current_strokes
-
-        self.enable_controls(False)
+        
+        self.image_tab.setEnabled(False)
+        self.btn_select_area.setEnabled(False)
+        self.btn_start.setEnabled(False)
         self.btn_start.setText("DRAWING...")
         
-        self.controller.start_drawing(strokes, x, y)
+        self.controller.start_drawing(self.current_strokes, x, y)
 
-    def on_draw_complete(self):
+    def on_draw_complete(self) -> None:
         self.show_themed_messagebox("Success", "Drawing completed!", QMessageBox.Icon.Information)
 
-    def on_draw_aborted(self):
+    def on_draw_aborted(self) -> None:
         self.show_themed_messagebox("Aborted", "Drawing stopped by user.", QMessageBox.Icon.Warning)
 
-    def on_draw_error(self, err_msg: str):
+    def on_draw_error(self, err_msg: str) -> None:
         self.show_themed_messagebox("Error", f"An error occurred:\n{err_msg}", QMessageBox.Icon.Critical)
 
-    def reset_ui(self):
-        self.enable_controls(True)
-        self.btn_start.setText("3. START DRAWING")
+    def reset_ui(self) -> None:
+        self.image_tab.setEnabled(True)
+        self.btn_select_area.setEnabled(True)
+        self.btn_start.setEnabled(True)
+        self.btn_start.setText("START DRAWING")

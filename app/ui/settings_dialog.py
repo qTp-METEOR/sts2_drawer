@@ -26,7 +26,7 @@ class KeybindRecorder(QPushButton):
         else:
             self.setStyleSheet("") 
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, event: QKeyEvent): # type: ignore[override]
         if not self.isChecked():
             super().keyPressEvent(event)
             return
@@ -42,7 +42,7 @@ class KeybindRecorder(QPushButton):
         self.setChecked(False)
         self.key_changed.emit(sequence)
 
-    def mousePressEvent(self, event: QMouseEvent):
+    def mousePressEvent(self, event: QMouseEvent): # type: ignore[override]
         if not self.isChecked():
             super().mousePressEvent(event)
             return
@@ -138,17 +138,14 @@ class SettingsDialog(QDialog):
         about_layout = QVBoxLayout(tab_about)
         about_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_title = QLabel("<h2>StS2 Drawer</h2>")
-        lbl_version = QLabel("<b>Version:</b> 1.0.0")
+        lbl_version = QLabel("<b>Version:</b> 0.0.1-alpha")
         lbl_github = QLabel('<a href="https://github.com/qTp-METEOR/sts2_drawer">View Source on GitHub</a>')
         lbl_github.setOpenExternalLinks(True)
-        lbl_credits = QLabel("Built with PySide6, OpenCV, and Rembg.")
-        lbl_credits.setStyleSheet("color: #888; font-style: italic;")
 
         about_layout.addWidget(lbl_title)
         about_layout.addWidget(lbl_version)
         about_layout.addWidget(lbl_github)
         about_layout.addSpacing(20)
-        about_layout.addWidget(lbl_credits)
         tabs.addTab(tab_about, "About")
 
         layout.addWidget(tabs)
