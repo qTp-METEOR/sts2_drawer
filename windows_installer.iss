@@ -24,6 +24,7 @@ ArchitecturesInstallIn64BitMode=x64
 Uninstallable=yes
 SetupIconFile={#IconFile}
 UninstallDisplayIcon={app}\{#AppExeName}
+LicenseFile=./LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
