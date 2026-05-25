@@ -1,22 +1,25 @@
 import os
 import logging
 from pathlib import Path
-from typing import Any, Optional, List, Tuple
+from typing import Any, Optional, List, Tuple, cast
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QPushButton, QLabel, QFileDialog, QHBoxLayout, 
-                               QMessageBox)
+                               QMessageBox, QTabWidget)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap, QAction
 
 from app.utils.logger import signaler
 from app.utils.theme import is_theme_dark, apply_native_titlebar_theme
 from app.engine.image_processor import ImageProcessor
+from app.engine.text_processor import TextProcessor
 from app.ui.selection_overlay import SelectionOverlay
 from app.ui.settings_dialog import SettingsDialog
 from app.ui.image_setup_widget import ImageModeWidget
+from app.ui.text_setup_widget import TextModeWidget
 from app.core.config import config
 from app.core.controller import DrawingController
 
@@ -32,6 +35,8 @@ class MainWindow(QMainWindow):
         signaler.error_signal.connect(self.show_critical_error)
 
         self.image_processor = ImageProcessor(rembg_session=rembg_session)
+        self.text_processor = TextProcessor()
+        
         self.image_path: Optional[str] = None
         self.draw_area: Optional[Tuple[int, int, int, int]] = None
         self.current_strokes: List[NDArray[np.int32]] = []
@@ -53,12 +58,15 @@ class MainWindow(QMainWindow):
     def show_themed_messagebox(self, title: str, text: str, icon: QMessageBox.Icon) -> None:
         self.reset_ui()
         self.force_focus()
+        
         msg = QMessageBox(self) 
         msg.setWindowTitle(title)
         msg.setText(text)
         msg.setIcon(icon)
+        
         is_dark = is_theme_dark(self.current_theme)
         apply_native_titlebar_theme(int(msg.winId()), is_dark)
+        
         msg.exec()
 
     def show_critical_error(self, title: str, message: str) -> None:
@@ -93,13 +101,23 @@ class MainWindow(QMainWindow):
         control_panel.setMaximumWidth(550)
         v_layout = QVBoxLayout(control_panel)
 
+        self.tabs = QTabWidget()
         self.image_tab = ImageModeWidget(initial_delay=config.drawing_delay)
+        self.text_tab = TextModeWidget()
+        
+        self.tabs.addTab(self.image_tab, "Image Mode")
+        self.tabs.addTab(self.text_tab, "Text Mode")
+        
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+        
         self.image_tab.load_requested.connect(self.load_image)
         self.image_tab.settings_changed.connect(self._on_settings_changed)
         self.image_tab.bg_toggled.connect(self.on_bg_toggle_changed)
         self.image_tab.delay_changed.connect(self.set_drawing_delay)
         
-        v_layout.addWidget(self.image_tab)
+        self.text_tab.settings_changed.connect(self._on_settings_changed)
+
+        v_layout.addWidget(self.tabs)
         v_layout.addSpacing(10)
 
         self.lbl_area = QLabel("Target: Not Selected")
@@ -134,6 +152,9 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(control_panel, stretch=1)
         main_layout.addWidget(preview_panel, stretch=2)
+
+    def _on_tab_changed(self, index: int) -> None:
+        self.preview_timer.start(100)
 
     def _on_settings_changed(self) -> None:
         self.preview_timer.start(200)
@@ -176,6 +197,8 @@ class MainWindow(QMainWindow):
             logger.error(f"Stylesheet not found: {style_path}. Ensure the file exists.")
 
     def load_image(self) -> None:
+        self.tabs.setCurrentIndex(0) 
+        
         file_name, _ = QFileDialog.getOpenFileName(
             self, 
             "Select Image", 
@@ -236,29 +259,60 @@ class MainWindow(QMainWindow):
         is_dark = (self.get_resolved_theme() == "Dark")
         line_color = (255, 255, 255) if is_dark else (0, 0, 0)
         
-        if not self.image_path:
-            self.lbl_preview.setText("Click 'Load Image' to select a picture to draw.")
-            self.btn_start.setEnabled(False)
-            return
-            
-        settings = self.image_tab.get_settings()
-        preview_img, points = self.image_processor.generate_preview(
-            w, h, settings["thresh1"], settings["thresh2"], settings["speed"], line_color=line_color
-        )
-        self.current_strokes = self.image_processor.current_strokes
+        preview_img = None
+        points = 0
+
+        if self.tabs.currentIndex() == 0:
+            if not self.image_path:
+                self.lbl_preview.setText("Click 'Load Image' to select a picture to draw.")
+                self.btn_start.setEnabled(False)
+                return
+                
+            settings = self.image_tab.get_settings()
+            preview_img, points = self.image_processor.generate_preview(
+                w, h, settings["thresh1"], settings["thresh2"], settings["speed"], line_color=line_color
+            )
+            self.current_strokes = self.image_processor.current_strokes
+
+        elif self.tabs.currentIndex() == 1:
+            settings = self.text_tab.get_settings()
+            if not settings["text"].strip():
+                self.lbl_preview.setText("Enter some text in the input box to see the preview.")
+                self.btn_start.setEnabled(False)
+                return
+
+            strokes, points = self.text_processor.generate_strokes(
+                settings["text"], settings["font_family"], settings["font_size"],
+                w, h, settings["alignment"]
+            )
+            self.current_strokes = strokes
+            preview_img = self.render_raw_strokes_to_image(strokes, w, h, line_color)
 
         if preview_img is not None and self.current_strokes:
             self.lbl_stats.setText(f"Strokes: {len(self.current_strokes):,} | Points: {points:,}")
+            
             h_img, w_img, ch = preview_img.shape
             bytes_per_line = ch * w_img
             qt_image = QImage(preview_img.data, w_img, h_img, bytes_per_line, QImage.Format.Format_RGBA8888)
             pixmap = QPixmap.fromImage(qt_image)
+            
             self.lbl_preview.setPixmap(pixmap.scaled(self.lbl_preview.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             self.btn_start.setEnabled(True)
         else:
             self.lbl_preview.setText("Could not generate preview. Try adjusting your settings.")
             self.btn_start.setEnabled(False)
+        
+    def render_raw_strokes_to_image(
+        self, strokes: List[NDArray[np.int32]], w: int, h: int, line_color: Tuple[int, int, int]
+    ) -> NDArray[np.uint8]:
+        """Used by the text processor to convert raw math arrays into a previewable RGBA image."""
+        preview = np.zeros((h, w, 4), dtype=np.uint8)
+        color_alpha: Tuple[int, int, int, int] = (*line_color, 255) 
+        for stroke in strokes:
+            cv2.polylines(preview, [stroke], isClosed=False, color=color_alpha, thickness=1, lineType=cv2.LINE_AA)
 
+        return cast(NDArray[np.uint8], cv2.cvtColor(preview, cv2.COLOR_BGRA2RGBA))
+    
     def force_focus(self) -> None:
         if self.isMinimized():
             self.showNormal()
@@ -272,7 +326,7 @@ class MainWindow(QMainWindow):
 
         x, y, _, _ = self.draw_area
         
-        self.image_tab.setEnabled(False)
+        self.tabs.setEnabled(False)
         self.btn_select_area.setEnabled(False)
         self.btn_start.setEnabled(False)
         self.btn_start.setText("DRAWING...")
@@ -289,7 +343,7 @@ class MainWindow(QMainWindow):
         self.show_themed_messagebox("Error", f"An error occurred:\n{err_msg}", QMessageBox.Icon.Critical)
 
     def reset_ui(self) -> None:
-        self.image_tab.setEnabled(True)
+        self.tabs.setEnabled(True)
         self.btn_select_area.setEnabled(True)
         self.btn_start.setEnabled(True)
         self.btn_start.setText("START DRAWING")

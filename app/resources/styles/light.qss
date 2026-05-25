@@ -22,7 +22,13 @@ QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top center; p
 QSlider::handle:horizontal { background: #888; width: 14px; margin: -4px 0; border-radius: 7px; }
 QSlider::groove:horizontal { background: #ddd; height: 6px; border-radius: 3px; }
 
+QRadioButton::indicator { width: 14px; height: 14px; border: 1px solid #aaa; background: #fff; border-radius: 8px;}
+QRadioButton::indicator:checked { background: #3cb371; border: 1px solid #3cb371; }
+
+QTabBar::tab:hover:!selected { background: #d0d0d0; cursor: pointing-hand;}
+
 #StartBtn { background-color: #3cb371; color: white; border: none; min-height: 50px; font-weight: bold;}
 #StartBtn:disabled { background-color: #a3d9b8; color: #f0f0f0; }
 #StatsLabel { color: #666; font-style: italic; margin-top: 10px;}
 #PreviewLabel { background-color: #ffffff; border: 2px dashed #aaa; color: #555; }
+

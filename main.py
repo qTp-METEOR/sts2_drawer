@@ -1,16 +1,11 @@
 import sys
-
-from PySide6.QtWidgets import QApplication
-
 from app.utils.logger import setup_logger
-from app.ui.main_window import MainWindow
+from app.core.bootstrap import AppOrchestrator
 
-def main():
+def main() -> None:
     setup_logger()
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    orchestrator = AppOrchestrator()
+    sys.exit(orchestrator.app.exec())
 
 if __name__ == "__main__":
     main()
