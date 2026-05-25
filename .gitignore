@@ -420,3 +420,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+build/
+dist/
+WinInstallerOutput/
+*.spec
